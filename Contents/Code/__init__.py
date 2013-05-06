@@ -1,13 +1,14 @@
-import re
 
 TITLE    = 'Yahoo Screen'
 PREFIX   = '/video/yahooscreen'
 ART      = 'art-default.jpg'
 ICON     = 'icon-default.png'
 
+RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
+RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
+
 YahooURL = 'http://screen.yahoo.com'
 YahooOrigURL = 'http://screen.yahoo.com/yahoo-originals/'
-ElectricCityURL = 'http://electriccity.yahoo.com'
 
 http = 'http:'
 
@@ -43,7 +44,7 @@ def MainMenu():
   page = HTML.ElementFromURL(show_url)
   title = page.xpath("//head//meta[@property='og:title']//@content")[0]
   description = page.xpath("//head//meta[@name='description']//@content")[0]
-  thumb = 'http://l.yimg.com/bt/api/res/1.2/6A3u9oiAMdXRTR8fdMdrKQ--/YXBwaWQ9eW5ld3M7Zmk9ZmlsbDtoPTEyOTtweW9mZj0wO3E9ODU7dz0yMzA-/http://l.yimg.com/os/595/2012/05/02/burninglovelogo-jpg_144203.jpg'	
+  thumb = GetThumb(title)	
 	
   oc.add(DirectoryObject(
     key=Callback(BurningLove, title=title, url=show_url, thumb=thumb), 
@@ -125,26 +126,13 @@ def BurningLove(title, url, thumb):
 def YahooID(url):
 
   ID = ''
-  html = HTML.ElementFromURL(url)
-  for script in html.xpath('//body/script[@language="javascript"]'):
-    text = script.xpath('.//text()')[0]
-    match = re.search("(listId.*) pagesConfig: (\.*)", text)
-    if match:
-      ID = match.group(0)
-      ID = ID.replace('listId: "', '').replace('", pagesConfig: ', '')
-      break
-	# the text contains listId
-    else:
-      for script in html.xpath('//head/script[@language="javascript"]'):
-        text = script.xpath('.//text()')[0]
-        match = re.search("CONTENT_ID .+", text)
-        if match:
-          ID = match.group(0)
-          ID = ID.replace('CONTENT_ID = "', '').replace('";', '')
-          break
-      
+  content = HTTP.Request(url).content
+  try:
+    ID = RE_LIST_ID.search(content).group(1)
+  except:
+    ID = RE_CONTENT_ID.search(content).group(1)
   return ID
-
+ 
 ######################################################################################################
 @route(PREFIX + '/showyahoo')
 def ShowYahoo(title, url):
@@ -222,12 +210,12 @@ def ShowYahoo(title, url):
         oc.add(VideoClipObject(
           url = ep_url, 
           title = ep_title, 
-          thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
+          thumb = thumb))
   
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="Unable to display videos for this show right now.")      
   return oc
-  
+   
 ###############################################################################################################
 # This function picks up the second carousel on a page, so it could be used for any show
 # Want to use this function to pick up other videos available for Burning Love
@@ -251,3 +239,16 @@ def MoreVideosYahoo(title, url):
       thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
       
   return oc
+
+#############################################################################################################################
+# This is a function to pull the thumb from a the Yahoo Originals page and uses the show title to find the correct image
+def GetThumb(title):
+
+  try:
+    thumb_page = HTML.ElementFromURL(YahooOrigURL)
+    thumb = thumb_page.xpath('//ul/li/ul/li/div/a/img[@alt="%s"]//@style' % title)[0]
+    thumb = thumb.replace("background-image:url('", '').replace("');", '')
+
+  except:
+    thumb = R(ICON)
+  return thumb
