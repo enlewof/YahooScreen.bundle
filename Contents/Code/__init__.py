@@ -25,9 +25,6 @@ def Start():
   EpisodeObject.art = R(ART)
   VideoClipObject.thumb = R(ICON)
   VideoClipObject.art = R(ART)
-    
-  HTTP.CacheTime = CACHE_1HOUR
-  HTTP.Headers['User-Agent'] = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:18.0) Gecko/20100101 Firefox/18.0'
 
 ###################################################################################################
 
