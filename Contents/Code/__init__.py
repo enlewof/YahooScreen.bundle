@@ -96,7 +96,7 @@ def SectionYahoo(title, id):
         oc.add(DirectoryObject(
           key=Callback(ShowYahoo, title=title, url=url), 
           title=title, 
-          thumb=thumb))	
+          thumb=Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))	
 
   return oc
 
@@ -176,7 +176,7 @@ def ShowYahoo(title, url):
           oc.add(VideoClipObject(
             url = url, 
             title = title, 
-            thumb = thumb,
+            thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON)),
             summary = summary,
             duration = duration,
             originally_available_at = date))
@@ -196,14 +196,13 @@ def ShowYahoo(title, url):
           oc.add(VideoClipObject(
             url = url, 
             title = title, 
-	    summary = summary,
-            thumb = thumb)) 
+            summary = summary,
+            thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON)))) 
 	
   except:
     html = HTML.ElementFromURL(url)
     # Here is where any alternative code can be put for channels that do not work with JSON
     # This is a basic html pull for channels of the first page of videos on a show that is from Yahoo Screens
-    Log('entered except section')
     smTitle = title.lower()
     smTitle = smTitle.replace(" ", '')
 
@@ -211,7 +210,6 @@ def ShowYahoo(title, url):
 
       ep_url = video.xpath('./div[@class="item-wrap"]/a//@href')[0]
       ep_url = YahooURL + ep_url
-      Log('In except section. the value of ep_url is %s'%ep_url)
       # There is no description for these videos, just the title and episode number, so not adding the description field
       ep_title = video.xpath('./div[@class="item-wrap"]/div/p[@class="title"]/a//text()')[0]
       # There is no duration for these videos, so not adding the duration field
@@ -224,10 +222,9 @@ def ShowYahoo(title, url):
         oc.add(VideoClipObject(
           url = ep_url, 
           title = ep_title, 
-          thumb = thumb))
+          thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
   
   if len(oc) < 1:
-    Log ('still no value for objects')
     return ObjectContainer(header="Empty", message="Unable to display videos for this show right now.")      
   return oc
   
@@ -251,6 +248,6 @@ def MoreVideosYahoo(title, url):
     oc.add(VideoClipObject(
       url = url, 
       title = title, 
-      thumb = thumb))
+      thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
       
   return oc
