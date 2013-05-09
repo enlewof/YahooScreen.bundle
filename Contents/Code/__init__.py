@@ -4,11 +4,16 @@ PREFIX   = '/video/yahooscreen'
 ART      = 'art-default.jpg'
 ICON     = 'icon-default.png'
 
+# These variables are regex to pull the list id and content id from the page
 RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
 RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
 
 YahooURL = 'http://screen.yahoo.com'
 YahooOrigURL = 'http://screen.yahoo.com/yahoo-originals/'
+
+# These are to make the carousel url cleaner in the code
+CarouselPt1 = 'http://screen.yahoo.com/_xhr/carousel/bcarousel-mixed-list/?list_id='
+CarouselPt2 = '&thumb_ratio=16x9&pyoff=0&title_lines_max=2&show_cite=&show_date=0&show_provider=0&show_author=&show_duration=0&show_subtitle=&show_provider_links=&apply_filter=&filters=&template=tile&num_cols=4&num_rows=8&start_initial=1&max_items=19&pages_per_batch=1&sec=&module=MediaBCarouselMixedLPCA&spaceid=792884066&mod_units=24&renderer_key='
 
 http = 'http:'
 
@@ -33,7 +38,7 @@ def Start():
 def MainMenu():
 # Broke it up into sections like comedy, living, news etc. There are not separate pages for each section and the main page for originals
 # has carousels for each section, so in order to get all the shows for each section, I hard coded them in with the id needed to access 
-# the carousel for that section
+# the full carousel for that section
   oc = ObjectContainer()
 
 # Making special menu for Burning Love
@@ -81,9 +86,10 @@ def MainMenu():
 def SectionYahoo(title, id):
 
   oc = ObjectContainer(title2=title)
-  list_URL = 'http://screen.yahoo.com/_xhr/carousel/bcarousel-mixed-list/?list_id=' + id + '&thumb_ratio=16x9&pyoff=0&title_lines_max=2&show_cite=&show_date=0&show_provider=0&show_author=&show_duration=0&show_subtitle=&show_provider_links=&apply_filter=&filters=&template=tile&num_cols=4&num_rows=8&start_initial=1&max_items=19&pages_per_batch=1&sec=&module=MediaBCarouselMixedLPCA&spaceid=792884066&mod_units=24&renderer_key='
+  # Made the following url cleaner by using two global variables one for the base url and one for the parameters
+  list_URL = CarouselPt1 + id + CarouselPt2
   page = HTML.ElementFromURL(list_URL)
-  for show in page.xpath('//li/ul/li/div'):
+  for show in page.xpath('//div[@class="item-wrap"]'):
 
       title = show.xpath('./div/p[@class="title"]/a//text()')[0]
       url = show.xpath('./div/p[@class="title"]/a//@href')[0]
@@ -123,6 +129,8 @@ def BurningLove(title, url, thumb):
  
 ###################################################################################################
 # This function pulls the Content ID from each show page for it to be entered into the JSON data url
+# One show (Animal All Stars) does not work with its Content ID, but does work with a List ID that is
+# only available on that page, so we check for that List ID first.
 def YahooID(url):
 
   ID = ''
@@ -193,7 +201,7 @@ def ShowYahoo(title, url):
     smTitle = title.lower()
     smTitle = smTitle.replace(" ", '')
 
-    for video in html.xpath('//div/ul/li/ul/li[@data-provider-id]'):
+    for video in html.xpath('//li[@data-provider-id]'):
 
       ep_url = video.xpath('./div[@class="item-wrap"]/a//@href')[0]
       ep_url = YahooURL + ep_url
@@ -217,8 +225,9 @@ def ShowYahoo(title, url):
     return oc
    
 ###############################################################################################################
-# This function picks up the second carousel on a page, so it could be used for any show
-# Want to use this function to pick up other videos available for Burning Love
+# This function picks up the second carousel on a page from a section with an id of mediabcarouselmixedlpca_2
+# It is used to pick up older episodes available on the Yahoo Screens website for Burning Love
+
 @route(PREFIX + '/morevideosyahoo')
 def MoreVideosYahoo(title, url):
 
@@ -244,13 +253,19 @@ def MoreVideosYahoo(title, url):
 
 #############################################################################################################################
 # This is a function to pull the thumb from a the Yahoo Originals page and uses the show title to find the correct image
+# It does not go through all selections in the carousel, but picks up most.  Would have to know the Yahoo section like 
+# comedy, living, finance, etc to be able to pull the full list from the carousel
+
 def GetThumb(title):
 
   try:
     thumb_page = HTML.ElementFromURL(YahooOrigURL)
-    thumb = thumb_page.xpath('//ul/li/ul/li/div/a/img[@alt="%s"]//@style' % title)[0]
+    try:
+      thumb = thumb_page.xpath('//a[@class="media"]/img[@alt="%s"]//@style' % title)[0]
+    except:
+      thumb = thumb_page.xpath('//a[@class="img-wrap"]/img[@alt="%s"]//@style' % title)[0]
     thumb = thumb.replace("background-image:url('", '').replace("');", '')
-
   except:
     thumb = R(ICON)
+
   return thumb
