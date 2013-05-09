@@ -96,7 +96,10 @@ def SectionYahoo(title, id):
           title=title, 
           thumb=Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))	
 
-  return oc
+  if len(oc) < 1:
+    return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no shows to display right now.")      
+  else:
+    return oc
 
 ###############################################################################################################
 # This is a special section for handling Burning Love so it can have extra videos
@@ -140,7 +143,6 @@ def ShowYahoo(title, url):
 
   try:
   # Split this into if type video and if type link to stop errors for missing dates and duration
-  # There is a short summary but there is alot of junk around it so for now not pulling summary
     data = JSON.ObjectFromURL(JSON_url)
     for video in data['items']:
       if video['type'] == 'video':
@@ -210,8 +212,9 @@ def ShowYahoo(title, url):
           thumb = thumb))
   
   if len(oc) < 1:
-    return ObjectContainer(header="Empty", message="Unable to display videos for this show right now.")      
-  return oc
+    return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no videos to display right now.")      
+  else:
+    return oc
    
 ###############################################################################################################
 # This function picks up the second carousel on a page, so it could be used for any show
@@ -223,7 +226,6 @@ def MoreVideosYahoo(title, url):
   html = HTML.ElementFromURL(url)
 
   for video in html.xpath('//div[@id="mediabcarouselmixedlpca_2"]/div/div/ul/li/ul/li'):
-  # need to check if urls need additions and if image is transparent and needs style to access it or any additions to address
     url = video.xpath('./div/a/@href')[0]
     url = YahooURL + url
     thumb = video.xpath('./div/a/img//@style')[0]
@@ -235,7 +237,10 @@ def MoreVideosYahoo(title, url):
       title = title, 
       thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
       
-  return oc
+  if len(oc) < 1:
+    return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no videos to display right now.")      
+  else:
+    return oc
 
 #############################################################################################################################
 # This is a function to pull the thumb from a the Yahoo Originals page and uses the show title to find the correct image
