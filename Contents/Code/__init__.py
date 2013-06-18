@@ -1,58 +1,52 @@
-
+# DID NOT ADD SORTS BECAUSE THE SITE ALREADY SORTS THE SHOWS BY NAME AND BY LATEST EPISODE FIRST 
+# IF YOU ADD A DATE SORT TO EACH SHOW, IT CAN MESS UP THE ORDER AND PUT THE EPISODES IN THE WRONG 
+# ORDER BECAUSE OFTEN MULTIPLE EPISODE OR VIDEOS ARE UPLOADED ON AND HAVE THE SAME DATE
 TITLE    = 'Yahoo Screen'
 PREFIX   = '/video/yahooscreen'
+# NOT SURE IF CODE BELOW IS NEEDED ANY LONGER
 ART      = 'art-default.jpg'
 ICON     = 'icon-default.png'
 
-# These variables are regex to pull the list id and content id from the page
-RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
-RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
-
 YahooURL = 'http://screen.yahoo.com'
 YahooOrigURL = 'http://screen.yahoo.com/yahoo-originals/'
-
-# These are to make the carousel url cleaner in the code
-CarouselPt1 = 'http://screen.yahoo.com/_xhr/carousel/bcarousel-mixed-list/?list_id='
-CarouselPt2 = '&thumb_ratio=16x9&pyoff=0&title_lines_max=2&show_cite=&show_date=0&show_provider=0&show_author=&show_duration=0&show_subtitle=&show_provider_links=&apply_filter=&filters=&template=tile&num_cols=4&num_rows=8&start_initial=1&max_items=19&pages_per_batch=1&sec=&module=MediaBCarouselMixedLPCA&spaceid=792884066&mod_units=24&renderer_key='
-
 http = 'http:'
 
+# These variables pull the list id and content id from page
+RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
+RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
+# This is the carousel url and JSON data urls
+Carousel = 'http://screen.yahoo.com/_xhr/carousel/bcarousel-mixed-list/?list_id=%s&thumb_ratio=16x9&pyoff=0&title_lines_max=2&show_cite=&show_date=0&show_provider=0&show_author=&show_duration=0&show_subtitle=&show_provider_links=&apply_filter=&filters=&template=tile&num_cols=4&num_rows=8&start_initial=1&max_items=19&pages_per_batch=1&sec=&module=MediaBCarouselMixedLPCA&spaceid=792884066&mod_units=24&renderer_key='
+# This is a global variable for the parameters of the Yahoo JSON data file. Currently it returns 32 items. 
+# To add more returned results, add the last number plus 5 to pc_starts and ",1u-1u-1u-1u-1u" to pc_layouts for each five entries you want to add
+YahooJSON = 'http://screen.yahoo.com/_xhr/slate-data/?list_id=%s&start=0&count=50&pc_starts=1,6,11,16,21,26&pc_layouts=1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u'
+
 ###################################################################################################
-# Set up containers for all possible objects
 def Start():
 
   ObjectContainer.title1 = TITLE
-  ObjectContainer.art = R(ART)
+  HTTP.CacheTime = CACHE_1DAY 
 
-  DirectoryObject.thumb = R(ICON)
-  DirectoryObject.art = R(ART)
-  EpisodeObject.thumb = R(ICON)
-  EpisodeObject.art = R(ART)
-  VideoClipObject.thumb = R(ICON)
-  VideoClipObject.art = R(ART)
 
 ###################################################################################################
-
-@handler(PREFIX, TITLE, art=ART, thumb=ICON)
-
+@handler(PREFIX, TITLE)
+# There are not separate pages for each section and the main originals page has carousels, 
+# so to get all the shows for each section, sections are hard coded in with a section carousel id
 def MainMenu():
-# Broke it up into sections like comedy, living, news etc. There are not separate pages for each section and the main page for originals
-# has carousels for each section, so in order to get all the shows for each section, I hard coded them in with the id needed to access 
-# the full carousel for that section
+
   oc = ObjectContainer()
 
-# Making special menu for Burning Love
-  show_url = 'http://screen.yahoo.com/burning-love/'
-  page = HTML.ElementFromURL(show_url)
+# Made special menu for Burning Love
+  url = 'http://screen.yahoo.com/burning-love/'
+  page = HTML.ElementFromURL(url)
   title = page.xpath("//head//meta[@property='og:title']//@content")[0]
-  description = page.xpath("//head//meta[@name='description']//@content")[0]
-  thumb = GetThumb(title)	
+  summary = page.xpath("//head//meta[@name='description']//@content")[0]
+  thumb = GetThumb(title)
 	
   oc.add(DirectoryObject(
-    key=Callback(BurningLove, title=title, url=show_url, thumb=thumb), 
+    key=Callback(BurningLove, title=title, url=url, thumb=thumb), 
     title=title, 
     thumb=thumb,
-    summary=description))
+    summary=summary))
 
   oc.add(DirectoryObject(
     key=Callback(SectionYahoo, title='Yahoo! Comedy Originals', id='c59ae629-33fc-4bca-977e-604da14af38f'),
@@ -79,15 +73,14 @@ def MainMenu():
     title='Yahoo! Entertainment Originals'))
 
   return oc
-  
+
 ###################################################################################################
-# This function uses the carousel file to pull the data needed to produce the different sections
+# This function uses the carousel file to pull the the shows for each sections
 @route(PREFIX + '/sectionyahoo')
 def SectionYahoo(title, id):
 
   oc = ObjectContainer(title2=title)
-  # Made the following url cleaner by using two global variables one for the base url and one for the parameters
-  list_URL = CarouselPt1 + id + CarouselPt2
+  list_URL = Carousel %id
   page = HTML.ElementFromURL(list_URL)
   for show in page.xpath('//div[@class="item-wrap"]'):
 
@@ -95,12 +88,12 @@ def SectionYahoo(title, id):
       url = show.xpath('./div/p[@class="title"]/a//@href')[0]
       thumb = show.xpath('./a/img//@src')[0]
 	  
-      if title != 'Burning Love':
-      # So Burning Love will not appear twice since it has its own route
+      # Skipping Burning Love since it has its own route and Electric City since it does not work with URL service
+      if title not in ['Electric City', 'Burning Love']:
         oc.add(DirectoryObject(
           key=Callback(ShowYahoo, title=title, url=url), 
           title=title, 
-          thumb=Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))	
+          thumb=Resource.ContentsOfURLWithFallback(thumb)))	
 
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no shows to display right now.")      
@@ -108,10 +101,11 @@ def SectionYahoo(title, id):
     return oc
 
 ###############################################################################################################
-# This is a special section for handling Burning Love so it can have extra videos
+# This is a special section for handling Burning Love with sections, one for current episodes pulled like other shows
+# and one for older episodes that apear in the second section of page
 @route(PREFIX + '/burninglove')
 def BurningLove(title, url, thumb):
-# want to create two folders.  One for current episodes and one for other videos that we pull from the MoreVideosYahoo function below
+
   oc = ObjectContainer(title2=title)
 
   oc.add(DirectoryObject(
@@ -126,11 +120,11 @@ def BurningLove(title, url, thumb):
       
   return oc
 
- 
 ###################################################################################################
-# This function pulls the Content ID from each show page for it to be entered into the JSON data url
-# One show (Animal All Stars) does not work with its Content ID, but does work with a List ID that is
-# only available on that page, so we check for that List ID first.
+# This function pulls the ID for the JSON data url
+# All shows have a content ID except one (Animal All Stars), so pull List ID for that one
+# and check for List ID first.
+@route(PREFIX + '/yahooid')
 def YahooID(url):
 
   ID = ''
@@ -146,45 +140,43 @@ def YahooID(url):
 def ShowYahoo(title, url):
 
   oc = ObjectContainer(title2=title)
-  JSON_url = YahooID(url)
-  JSON_url = 'http://screen.yahoo.com/_xhr/slate-data/?list_id=' + JSON_url + '&start=0&count=50&pc_starts=1,6,11,16,21,26&pc_layouts=1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u'
-
+  JSON_ID = YahooID(url)
+  # could clean this url up with global variables
+  JSON_url = YahooJSON %JSON_ID
   try:
-  # Split this into if type video and if type link to stop errors for missing dates and duration
     data = JSON.ObjectFromURL(JSON_url)
+  except:
+    return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
+
+  if data.has_key('items'):
     for video in data['items']:
+      description = video['summary_short']
+      desc_data = HTML.ElementFromString(description)
+      summary = desc_data.xpath('//text()')[0]
+      title = video['title_short'] 
+      thumb = video['image_thumb_url']
       if video['type'] == 'video':
         url = video['link_url'] 
+        duration = Datetime.MillisecondsFromString(video['duration'])
+        date = Datetime.ParseDate(video['date'])
+		# some entries do not have urls
         if url:
-          description = video['summary_short']
-          desc_data = HTML.ElementFromString(description)
-          summary = desc_data.xpath('//text()')[0]
-          title = video['title_short'] 
-          thumb = video['image_thumb_url']
-          duration = video['duration']
-          duration = Datetime.MillisecondsFromString(duration)
-          date = video['date']
-          date = Datetime.ParseDate(date)
           if not url.startswith('http://'):
             url = YahooURL + url
 
           oc.add(VideoClipObject(
             url = url, 
             title = title, 
-            thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON)),
+            thumb = Resource.ContentsOfURLWithFallback(thumb),
             summary = summary,
             duration = duration,
             originally_available_at = date))
-	# This section is for type link right now just one show uses the Yahoo Animal Allstars and the URL service is not picking up its videos
+	# This section is for show with type link in json data that have no dates or duration(just one Yahoo Animal Allstars)
       else:
-        # The url in the link_url field does not work with the service so we are pulling the url out of summary_short
-        description = video['summary_short']
-        desc_data = HTML.ElementFromString(description)
-        summary = desc_data.xpath('//text()')[0]
+        # The url in the link_url field does not work with URL service so pull url out of summary_short
         url = desc_data.xpath('//a//@href')[0]
+		# some entries do not have urls
         if url:
-          title = video['title_short'] 
-          thumb = video['image_thumb_url']
           if not url.startswith('http://'):
             url = YahooURL + url
 
@@ -192,42 +184,16 @@ def ShowYahoo(title, url):
             url = url, 
             title = title, 
             summary = summary,
-            thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON)))) 
+            thumb = Resource.ContentsOfURLWithFallback(thumb))) 
 	
-  except:
-    html = HTML.ElementFromURL(url)
-    # Here is where any alternative code can be put for channels that do not work with JSON
-    # This is a basic html pull for channels of the first page of videos on a show that is from Yahoo Screens
-    smTitle = title.lower()
-    smTitle = smTitle.replace(" ", '')
-
-    for video in html.xpath('//li[@data-provider-id]'):
-
-      ep_url = video.xpath('./div[@class="item-wrap"]/a//@href')[0]
-      ep_url = YahooURL + ep_url
-      # There is no description for these videos, just the title and episode number, so not adding the description field
-      ep_title = video.xpath('./div[@class="item-wrap"]/div/p[@class="title"]/a//text()')[0]
-      # There is no duration for these videos, so not adding the duration field
-      ep_thumb = video.xpath('./div[@class="item-wrap"]/a/img//@style') [0]
-      ep_thumb = ep_thumb.replace("background-image:url('", '').replace("');", '')
-      data_provider =  video.xpath('.//@data-provider-id')[0]
-	
-      if smTitle in data_provider: 
-	
-        oc.add(VideoClipObject(
-          url = ep_url, 
-          title = ep_title, 
-          thumb = thumb))
-  
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no videos to display right now.")      
   else:
     return oc
    
 ###############################################################################################################
-# This function picks up the second carousel on a page from a section with an id of mediabcarouselmixedlpca_2
-# It is used to pick up older episodes available on the Yahoo Screens website for Burning Love
-
+# This picks up videos in the second section on a show page with an id="mediabcarouselmixedlpca_2"
+# It is only used to pick up older episodes available on the Yahoo Screens website for Burning Love right now
 @route(PREFIX + '/morevideosyahoo')
 def MoreVideosYahoo(title, url):
 
@@ -244,7 +210,7 @@ def MoreVideosYahoo(title, url):
     oc.add(VideoClipObject(
       url = url, 
       title = title, 
-      thumb = Resource.ContentsOfURLWithFallback(thumb, fallback=R(ICON))))
+      thumb = Resource.ContentsOfURLWithFallback(thumb)))
       
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no videos to display right now.")      
@@ -252,10 +218,10 @@ def MoreVideosYahoo(title, url):
     return oc
 
 #############################################################################################################################
-# This is a function to pull the thumb from a the Yahoo Originals page and uses the show title to find the correct image
-# It does not go through all selections in the carousel, but picks up most.  Would have to know the Yahoo section like 
-# comedy, living, finance, etc to be able to pull the full list from the carousel
-
+# This function pulls the thumb from a the Yahoo Originals main page
+# It cannot go through all selections since they are in a carousel, but picks up most.  
+# Would require the Yahoo section name and its id to pull the full list from the carousel
+@route(PREFIX + '/getthumb')
 def GetThumb(title):
 
   try:
