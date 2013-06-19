@@ -26,7 +26,6 @@ def Start():
   ObjectContainer.title1 = TITLE
   HTTP.CacheTime = CACHE_1DAY 
 
-
 ###################################################################################################
 @handler(PREFIX, TITLE)
 # There are not separate pages for each section and the main originals page has carousels, 
