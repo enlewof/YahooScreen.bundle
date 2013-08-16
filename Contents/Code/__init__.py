@@ -28,7 +28,7 @@ def Start():
 # There are not separate pages for each section and the main originals page has carousels, 
 # so we pull the carousel info into JSON format and use that to pull sections and urls
 @handler(PREFIX, TITLE)
-def MainMenuBest():
+def MainMenu():
 
   oc = ObjectContainer()
 
