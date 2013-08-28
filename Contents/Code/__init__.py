@@ -161,7 +161,7 @@ def ProduceCarousel(title, url, b=0):
     page_url = url + '&start=' + str(b)
   page = HTML.ElementFromURL(page_url)
   x=0
-  for show in page.xpath('//li'):
+  for show in page.xpath('//li[@class="bcarousel-item"]'):
     x=x+1
     # li without div gives one extra pull without a url but need it that way to get data provider
     # Results without images have no anchor in //div/a, so we get the title and url from /div/p/a and put image in a try
