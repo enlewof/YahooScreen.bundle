@@ -161,18 +161,22 @@ def ProduceCarousel(title, url, b=0):
     page_url = url + '&start=' + str(b)
   page = HTML.ElementFromURL(page_url)
   x=0
-  for show in page.xpath('//li/div'):
+  for show in page.xpath('//li'):
     x=x+1
+    # li without div gives one extra pull without a url but need it that way to get data provider
     # Results without images have no anchor in //div/a, so we get the title and url from /div/p/a and put image in a try
-    url = show.xpath('./div/p/a//@href')[0]
-    title = show.xpath('./div/p/a//text()')[0]
+    try:
+      url = show.xpath('./div/div/p/a//@href')[0]
+    except:
+      continue
+    title = show.xpath('./div/div/p/a//text()')[0]
     if not url.startswith('http'):
       url = YahooURL + url
     if '**' in url:
       url = url.split('**')[1]
       url = url.replace('%3A', ':')
     try:
-      thumb = show.xpath('./a/img//@src')[0]
+      thumb = show.xpath('./div/a/img//@src')[0]
     except:
       thumb = ''
 	  
@@ -192,7 +196,7 @@ def ProduceCarousel(title, url, b=0):
       data_provider = ''
       try:
         data_provider = show.xpath('.//@data-provider-id')[0]
-        #Log('the value of data_provider is %s' %data_provider)
+        Log('the value of data_provider is %s' %data_provider)
       except:
         # If there is not a data provider id, we run a URL Service check for the rest
         if URLTest(url) == 'false':
