@@ -9,26 +9,25 @@ YahooURL = 'http://screen.yahoo.com'
 YahooExploreURL = 'http://screen.yahoo.com/explore/'
 MostPopularURL = 'http://screen.yahoo.com/_xhr/carousel/bcarousel-mixed-popular/?most_popular=videos&categories=[]&thumb_ratio=16x9&pyoff=0&title_lines_max=4&show_cite=&show_date=&show_provider=&show_author=&show_duration=&show_subtitle=&show_provider_links=&apply_filter=&filters=%255B%255D&template=tile&num_cols=3&num_rows=14'
 
-# This returns json data for the large carousel at the top of each page. And uses the content id
-# Currently it returns 32 items. To add more returned results, add the last number plus 5 to pc_starts and ",1u-1u-1u-1u-1u" to pc_layouts for each five entries you want to add
-YahooJSON = 'http://screen.yahoo.com/_xhr/slate-data/?list_id=%s&start=0&count=50&pc_starts=1,6,11,16,21,26&pc_layouts=1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u,1u-1u-1u-1u-1u'
 # There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' though not sure how it would be used
 SearchJSON = 'http://video.search.yahoo.com/search//?p=%s&fr=screen&o=js&gs=0&b=%s'
 # This is for tabs. The format for this url is YAHOO_TAB_CAROUSEL %(instance_id, content_id, mod_id)
 YAHOO_TAB_CAROUSEL = 'http://screen.yahoo.com/_remote/?m_id=MediaRemoteInstance&m_mode=fragment&instance_id=%s&site=ivy&content_id=%s&mod_id=%s&mod_units=30&nolz=1'
 # This is for carousels and requires the list_id
-CAROUSEL_URL = '%s/_xhr/carousel/bcarousel-mixed-list/?list_id=%%s&thumb_ratio=16x9&num_cols=1&num_rows=16&show_date=1&show_cite=1&show_duration=1' % YahooURL
+CAROUSEL_URL = '%s/_xhr/carousel/bcarousel-mixed-list/?list_id=%%s&thumb_ratio=16x9&num_cols=1&num_rows=25&show_date=1&show_cite=1&show_duration=1' % YahooURL
 
 # This regex pulls the carousel data 
-RE_CAROUSEL_PART = Regex('Y.Media.BCarousel\((.+?),"paginationTemplate":')
 RE_CAROUSEL_FULL = Regex('Y.Media.BCarousel\((.+?),Y.Media.pageChrome')
-
-# These regex variables pull the list id, content id and tab info from page
+RE_CAROUSEL_PART = Regex('Y.Media.BCarousel\((.+?)&renderer_key=')
+# These regex variables pull the tab info from page
 RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
 RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
-RE_TAB_LIST_ID = Regex(r'bcarousel-mixed-list\\\\.+/?list_id=(.+?)&thumb_ratio')
 RE_TAB_CAROUSEL = Regex(r'tabview_mediatabs_configs=(.+?)<')
 RE_TAB_TITLE = Regex(r'yui3-tabview-content\\">(.+?)<\\/div')
+# These regex variables pull the list id, content id and tab info from page
+RE_LIST_ID = Regex('listId: "(.+?)", pagesConfig: ')
+#RE_LIST_ID = Regex('"#mediaslate", listId: "(.+?)", pagesConfig: ')
+RE_CONTENT_ID = Regex('CONTENT_ID = "(.+?)";')
 ###################################################################################################
 def Start():
 
@@ -46,8 +45,6 @@ def MainMenu():
   oc.add(DirectoryObject(key=Callback(YahooDirectory, title='Yahoo Screen by Section', url=YahooExploreURL, thumb=R(ICON)), title='Yahoo Screen by Section'))
   # Most Popular on Yahoo Screens
   oc.add(DirectoryObject(key=Callback(ProduceCarousel, title='Most Popular on Yahoo Screen', url=MostPopularURL), title='Most Popular on Yahoo Screen'))
-  # Latest on Yahoo Screens
-  oc.add(DirectoryObject(key=Callback(ShowYahoo, title='Latest Videos on Yahoo Screen', url=YahooURL), title='Latest Videos on Yahoo Screen'))
   # Yahoo Search Object
   oc.add(InputDirectoryObject(key=Callback(SearchYahoo, title='Search Yahoo Screen'), title='Search Yahoo Screen', summary="Click here to search Yahoo Screen", prompt="Search for videos in Yahoo Screen"))
 
@@ -63,8 +60,31 @@ def YahooDirectory(title, url, thumb):
   except:
     return ObjectContainer(header=L('Error'), message=L('Unable to access other sections for ths show. Either the show page does not have any additonal videos or they are incompatible with this channel'))
    
-  # FOUND IT MUCH FASTER TO PULL ALL THE DATA AND THEN MATCH IT TO A URL THAN TO DO A PULL FOR EVERY CAROUSEL ENTRY
-  json_data = '[' + (','.join(RE_CAROUSEL_FULL.findall(content))) + ']'
+  # It is much faster to pull all carousel data on a page then use that to match to carousel id
+  # Use a partial regex match and add ending json to avoid data at end of each carousel entry that cause errors when fixing backslashes in tabbed carousel json in GetJSON function
+  json_data = '[' + ('"},'.join(RE_CAROUSEL_PART.findall(content))) + '"}]'
+
+  # If 'nested_mediatabs' in the the carousel json data, there is an extra carousel and there are tabs associated with that carousel
+  # Since the tabbed carousels have completely different xpath, easier to just add a pull here than try alter carousel id xpath pull below
+  # Create the list_id for the tabbed carousel from the GetJSON function and add directory for it
+  if 'nested_mediatabs' in json_data:
+    car_id = 'nested_mediatabs_'
+    list_id = GetJSON(json_data, car_id)
+    oc.add(DirectoryObject(key=Callback(ProduceCarousel, title=title, url=CAROUSEL_URL %list_id), title=title, thumb=thumb))
+    # Create separate directories for its associated tabs
+    carousel_tabs = TabCarouselList(url, title, thumb)
+    for obj in carousel_tabs.objects:
+      oc.add(obj)
+  else:
+    pass
+  # If there is a content_id in the json_ data, then there is a carousel for the latest videos, if not we need to create a directory
+  # for the latest videos.
+  if '?content_id=' not in json_data and '/explore/' not in url:
+    content_id = YahooID(url)
+    if content_id:
+      oc.add(DirectoryObject(key=Callback(ProduceCarousel, title='Latest Videos', url=CAROUSEL_URL %content_id), title='Latest Videos', thumb=thumb))
+  else:
+    pass
   
   for category in HTML.ElementFromString(content).xpath('//div[contains(@id,"mediabcarousel")]'):
     title = category.xpath('./div/div/div[@class="heading"]/h3//text()')[0]
@@ -75,26 +95,12 @@ def YahooDirectory(title, url, thumb):
     # Skip the Most Popular Now on Screen section in each show
     if car_id == 'mediabcarouselmixedmostpopularca':
       continue
-    list_id = GetJSON(json_data, car_id)
-    if not list_id:
-      continue
 
-    oc.add(DirectoryObject(key=Callback(ProduceCarousel, title=title, url=CAROUSEL_URL %list_id), title=title, thumb=thumb))
-
-  # This checks to see if a page has tabs and creates directories for them
-  if '#mediatabs' in content:
-    tab_list = RE_TAB_LIST_ID.findall(content)
-    Log('the value of tab_list is %s' %tab_list)
-    for list_id in tab_list:
-     # This pulls any carousels hidden in a nested tab format with backslashes and creates directories for them
-     oc.add(DirectoryObject(key=Callback(ProduceCarousel, title=show_title, url=CAROUSEL_URL %list_id), title=show_title, thumb=thumb))
-
-    # This creates directories for the tabs
-    carousel_tabs = TabCarouselList(url, title, thumb)
-    for obj in carousel_tabs.objects:
-      oc.add(obj)
-  else:
-    pass
+    else:
+      list_id = GetJSON(json_data, car_id)
+      if not list_id:
+        continue
+      oc.add(DirectoryObject(key=Callback(ProduceCarousel, title=title, url=CAROUSEL_URL %list_id), title=title, thumb=thumb))
       
   #oc.objects.sort(key = lambda obj: obj.title)
 
@@ -104,14 +110,26 @@ def YahooDirectory(title, url, thumb):
     return oc
 
 ####################################################################################################
-# This function creates a url for each carousel
+# This function creates a url for each carousel based on the carousel identifier used for each section 
+# and the associated carousel json data pulled from the bottom of each page 
 def GetJSON(json_data, car_id):
 
-  json = JSON.ObjectFromString(json_data)
+  try:
+    json = JSON.ObjectFromString(json_data)
+  except:
+    # The json data for pages with tabs have backslashes in the data and give errors here so 
+    # if the JSON parse fails, we replace the backslashes and try the pull again
+    try:
+      json_data = json_data.replace('\\','')
+      json = JSON.ObjectFromString(json_data)
+    except:
+      return None
 
   for item in json:
     mod_id = item['modId']
-    if car_id == mod_id:
+    # Made this an "in" instead of "==" so it will work with the mediatab modId
+    # the ModId appears to be 'nested_mediatabs_nmid_1_' but just pull 'nested_mediatabs_' to be sure we catch all
+    if car_id in mod_id:
       xhr_url = item['xhrUrl']
       if 'list_id' in xhr_url:
         list_id = xhr_url.split('list_id=')[-1].split('&')[0]
@@ -122,28 +140,10 @@ def GetJSON(json_data, car_id):
       pass
 
   return None
-####################################################################################################
-# This function creates a url for each carousel
-def GetJSONOld(url, id):
-
-  page = HTTP.Request(url).content
-  json = Regex(REGEX_JSON % id).search(page)
-
-  if json:
-    json_obj = JSON.ObjectFromString(json.group('json'))
-    xhr_url = json_obj['xhrUrl']
-    if 'list_id' in xhr_url:
-      list_id = xhr_url.split('list_id=')[-1].split('&')[0]
-    else:
-      list_id = xhr_url.split('content_id=')[-1].split('&')[0]
-    return list_id
-
-  return None
-
 #########################################################################################################
 # This function creates directory objects for the tab style carousels. Finds content_id, instance_ids and mod_ids for YAHOO_TAB_CAROUSEL url
-# THESE TABS ARE A DIFFERENT TYPE OF URL THAN CAROUSELS AND I CANNOT FIGURE OUT HOW TO INCREASE RESULTS
-# AFTER CLICKING ON A TAB AND CHOOSING PAGE 2 OF RESULTS IT CREATES A XHR CAROUSELS URL BUT CANNOT FIND THE DATA FOR IT ANYWHERE IN THE FILE
+# TABS ARE A DIFFERENT TYPE OF URL THAN CAROUSELS ('/_remote/' instead of '/_xhr/') AND CANNOT FIGURE OUT HOW TO INCREASE RESULTS IN THEM
+# AFTER CLICKING ON A TAB AND CHOOSING PAGE 2 OF THE RESULTS IT CREATES A XHR TYPE CAROUSELS URL BUT CANNOT FIND THE LIST ID FOR IT ANYWHERE
 @route(PREFIX + '/tabcarousellist')
 def TabCarouselList(url, title, thumb):
   oc = ObjectContainer()
@@ -151,23 +151,25 @@ def TabCarouselList(url, title, thumb):
   content = HTTP.Request(url).content
   content_id = RE_CONTENT_ID.search(content).group(1)
 
-  # Pulls the tab carousel data from the web page and put it into a json format
+  # Pulls the tab data from the web page and put it into a json format
   data_list = RE_TAB_CAROUSEL.findall(content)
   json_data = ','.join(data_list)
   json_data = json_data.replace('\\','')
   details = JSON.ObjectFromString(json_data)
 
-  # make as list of tab names which are in a script separate from tab carousel data
+  # make as list of tab names which are in a script separate from tab data above
+  # There is no actual HTML code on the page to pull xpath data from
   tab_code = RE_TAB_TITLE.search(content).group(1)
   tab_code = tab_code.replace('\\','')
   page = HTML.ElementFromString(tab_code)
   tab_titles = page.xpath('//li/a//text()')
 
   x=0
-  # Put the all data together. SKIP THE FIRST ONE SINCE THE FIRST TAB WILL BE PRODUCED AS A REGULAR CAROUSEL
+  # Put the all data together. 
   for items in details:
     title = tab_titles[x] + ' Tab'
     carousel_url = YAHOO_TAB_CAROUSEL %(items['instanceId'], content_id, items['moduleId'])
+    # Skip the first tab since there is a regular carousel for it
     if x > 0:
       oc.add(DirectoryObject(key=Callback(ProduceCarousel, title=title, url=carousel_url), title=title, thumb=thumb))
     x=x+1
@@ -198,13 +200,11 @@ def ProduceCarousel(title, url, b=0):
       continue
     if not url.startswith('http'):
       url = YahooURL + url
-    # Why was this an issue? Was it just an issue on those without data providers? Need to test it on a few more
     if '**' in url:
       url = url.split('**')[1]
       url = url.replace('%3A', ':')
-    # Found  http://yhoo.it/ in a link that resolves to another url and is not supported by URL service.
-    #if url.startswith('http://yhoo.it/'):
-      #continue
+    # Found  http://yhoo.it/ in a link that resolves to another url and is not supported by URL service 
+    # but when you put a check in for it, Burning Love no longer produces
     title = show.xpath('./div/div/p/a//text()')[0]
     try:
       thumb = show.xpath('./div/a/img//@src')[0]
@@ -227,7 +227,7 @@ def ProduceCarousel(title, url, b=0):
       data_provider = ''
       try:
         data_provider = show.xpath('.//@data-provider-id')[0]
-        Log('the value of data_provider is %s' %data_provider)
+        #Log('the value of data_provider is %s' %data_provider)
       except:
         # If there is not a data provider id, we run a URL Service check for the rest
         if URLTest(url) == 'false':
@@ -245,15 +245,14 @@ def ProduceCarousel(title, url, b=0):
           thumb=Resource.ContentsOfURLWithFallback(thumb)))	
     # Show and Section Objects (Electric City now proper page to pull data from)
     else:
-      oc.add(DirectoryObject(
-        key=Callback(ShowSection, title=title, url=url, thumb=thumb), 
-        title=title, 
-        thumb=Resource.ContentsOfURLWithFallback(thumb)))	
+      oc.add(DirectoryObject(key=Callback(YahooDirectory, title=title, url=url, thumb=thumb), title=title, thumb=Resource.ContentsOfURLWithFallback(thumb)))	
 
+# SINCE SOME RESULTS DO NOT WORK, IT MAY GO THROUGH ALL THE ENTRIES ON A PAGE AND STILL PUT NOTHING BUT A NEXT PAGE ON IT
+# SINCE BLOCKING OF PAGE MUST BE SET IN ADVANCE, JUST SET TOTAL PER PAGE TO 25
 # Paging code. Each page pulls 16 results max and use x counter to determine need for more results
 # Added remote check for tab carousels since they do not have pages
   if  '/_remote/' not in url:
-    if x == 16:
+    if x >= 16:
       b = b + 16
       oc.add(NextPageObject(
         key = Callback(ProduceCarousel, title = title, url=orig_url, b=b), 
@@ -261,7 +260,7 @@ def ProduceCarousel(title, url, b=0):
 	
 
   if len(oc) < 1:
-    return ObjectContainer(header="Empty", message="This section does not contain any videos that are not compatible with this channel.")      
+    return ObjectContainer(header="Empty", message="This section does not contain any videos that are compatible with this channel.")      
   else:
     return oc
 
@@ -278,31 +277,9 @@ def URLTest(url):
   #Log('the value of url test is %s' %url_good)
   return url_good
 
-###############################################################################################################
-# This breaks the shows into two sections one for the json pull and one for the list of carousels
-@route(PREFIX + '/showsection')
-def ShowSection(title, url, thumb):
-
-  oc = ObjectContainer(title2=title)
-
-  # Do not produce json for Animal All Stars since all results are blogs
-  if 'Animal All Stars' not in title:
-    oc.add(DirectoryObject(
-      key=Callback(ShowYahoo, title=title, url=url),
-      title='Latest Videos',
-      thumb=thumb))
-
-  oc.add(DirectoryObject(
-    key=Callback(YahooDirectory, title=title, url=url, thumb=thumb),
-    title='All Videos',
-    thumb=thumb))
-    
-  return oc
-
 ###################################################################################################
-# This function pulls the ID for the JSON data url. All shows have a content ID but the one for Animal All Stars 
-# doesn't produce any results so we use its List ID. So check for List ID first.
-# ACTUALLY NOT USING THIS FOR ANIMAL ALL STARS BECAUSE ALL RESULTS ARE BLOGS RIGHT NOW
+# This function pulls the ID to be added to the YahooJSON url. All shows have a content ID that when added to the URL 
+# will produce the latest videos. But main sections and some shows also have a list ID that will produce the top carousel if one exists
 @route(PREFIX + '/yahooid')
 def YahooID(url):
 
@@ -314,70 +291,6 @@ def YahooID(url):
     ID = RE_CONTENT_ID.search(content).group(1)
   return ID
  
-######################################################################################################
-# This produces the top large image carousel and latest videos on most pages
-# Sometimes the videos pulled by this function are the same as those pulled from the ProduceCarousel pull but often different
-@route(PREFIX + '/showyahoo')
-def ShowYahoo(title, url):
-
-  oc = ObjectContainer(title2=title)
-  JSON_ID = YahooID(url)
-  JSON_url = YahooJSON %JSON_ID
-  content = HTTP.Request(JSON_url).content
-  try:
-    data = JSON.ObjectFromString(content)
-  except:
-    return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
-
-  # Several of the json files have nulls at the end that cause errors. So prior to entering the loop, 
-  # make sure the data can be pulled and if not, delete the nulls and reproduce the HTML Objects
-  for item in data['items']:
-    try:
-      description = item['summary_short']
-    except:
-      content = content.replace(',null', '')
-      data = JSON.ObjectFromString(content)
-
-  for video in data['items']:
-    description = video['summary_short']
-    desc_data = HTML.ElementFromString(description)
-    summary = desc_data.xpath('//text()')[0]
-    title = video['title_short'] 
-    thumb = video['image_thumb_url']
-    # here we have to add a thumb if there is none to prevent errors in thumb check at end
-    if not thumb:
-      thumb = R(ICON)
-    if video['type'] == 'video':
-      url = video['link_url'] 
-      duration = Datetime.MillisecondsFromString(video['duration'])
-      date = Datetime.ParseDate(video['date'])
-    else:
-      # This section is for show or sections with a type of link in json data. They have no dates or duration
-      # and the url in the link_url field does not work with URL service so we pull the url out of summary_short
-      url = desc_data.xpath('//a//@href')[0]
-      duration = None
-      date = None
-
-    # a few entries have no urls
-    if url:
-      if not url.startswith('http://'):
-        url = YahooURL + url
-      # This checks for unsupported videos. JSON does not list a data_provider but does include video.provider.com as part of image source
-      # As stated earlier, the data providers video.hulu.com and video.cbstv.com as well as blogs fail in the url service 
-      if 'hulu.com' not in thumb and 'cbstv.com' not in thumb and '/blogs/' not in url:
-
-        oc.add(VideoClipObject(
-          url = url, 
-          title = title, 
-          thumb = Resource.ContentsOfURLWithFallback(thumb),
-          summary = summary,
-          duration = duration,
-          originally_available_at = date))
-	
-  if len(oc) < 1:
-    return ObjectContainer(header="Empty", message="This directory appears to be empty or contains videos that are not compatible with this channel.")      
-  else:
-    return oc
 ######################################################################################################
 # This functions searches Yahoo Screens at 'http://video.search.yahoo.com/search//?fr=screen&q=love'
 @route(PREFIX + '/searchyahoo', b=int)
