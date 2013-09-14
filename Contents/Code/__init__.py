@@ -56,8 +56,7 @@ def SectionJSON(title, ch):
   oc = ObjectContainer(title2=title)
   # You have to determine and include a total count in the json url, otherwise it will only return the first 20 results or featured channels
   count = len(HTML.ElementFromURL(YahooURL, cacheTime = CACHE_1DAY).xpath('//span[@class="channel-name"]/a'))
-  #channels = HTML.ElementFromURL(YahooURL, cacheTime = CACHE_1DAY).xpath('//span[@class="channel-name"]/a')
-  #count = len(channels)
+
   try:
     data = JSON.ObjectFromURL(YahooSectionJSON %(count, 'common'), cacheTime = CACHE_1HOUR)
   except:
