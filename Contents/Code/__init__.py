@@ -6,18 +6,18 @@ ICON     = 'icon-default.png'
 
 YahooURL = 'http://screen.yahoo.com'
 # could possibly use type = user below to pull user preferred channels
-YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;count=20;start=%s;type=common'
-#YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;type=common'
+YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;videocount=0;count=%s;type=%s'
 YahooShowJSON = 'http://screen.yahoo.com/ajax/resource/channel/id/%s;count=20;start=%s'
 YahooShowURL = 'http://screen.yahoo.com/%s/%s.html'
-# There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' though not sure how it would be used
+# There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' 
+# It returns results of type keys so not surewhat I would use it for
 SearchJSON = 'http://video.search.yahoo.com/search//?p=%s&fr=screen&o=js&gs=0&b=%s'
 
 ###################################################################################################
 def Start():
 
   ObjectContainer.title1 = TITLE
-  #HTTP.CacheTime = CACHE_1HOUR 
+  HTTP.CacheTime = CACHE_1HOUR 
 
 ###################################################################################################
 @handler(PREFIX, TITLE)
@@ -25,42 +25,74 @@ def MainMenu():
 
   oc = ObjectContainer()
   
-  # Yahoo Screen By Login would need to change type = common to type = user
-  #oc.add(DirectoryObject(key=Callback(SideList, title='Your Channels', json_type='user'), title='Your Channels'))
-  # Yahoo Screen By Section
-  oc.add(DirectoryObject(key=Callback(SectionJSON, title='All Sections'), title='All Sections'))
+  # Yahoo Screen Featured Sections
+  oc.add(DirectoryObject(key=Callback(SectionJSON, title='Featured Channels', ch='feat'), title='Featured Channels'))
+  # Yahoo Screen All sections but featured
+  oc.add(DirectoryObject(key=Callback(SectionJSON, title='More Channels', ch='orig'), title='More Channels'))
+  # Yahoo Screen SNL sections
+  oc.add(DirectoryObject(key=Callback(SectionJSON, title='Saturday Night Live Channels', ch='snl'), title='Saturday Night Live Channels'))
+  # Yahoo Screen By A to Z
+  oc.add(DirectoryObject(key=Callback(Alphabet, title='All Channels A to Z'), title='All Channels A to Z'))
   # Most Popular on Yahoo Screens
-  oc.add(DirectoryObject(key=Callback(VideoJSON, title='Most Popular', url='popular'), title='Most Popular'))
+  oc.add(DirectoryObject(key=Callback(VideoJSON, title='Most Popular Videos', url='popular'), title='Most Popular Videos'))
   # Yahoo Search Object
-  oc.add(InputDirectoryObject(key=Callback(SearchYahoo, title='Search Yahoo Screen'), title='Search Yahoo Screen', summary="Click here to search Yahoo Screen", prompt="Search for videos in Yahoo Screen"))
+  oc.add(InputDirectoryObject(key=Callback(SearchYahoo, title='Search Yahoo Screen Videos'), title='Search Yahoo Screen Videos', summary="Click here to search for Videos on Yahoo Screen", prompt="Search for videos in Yahoo Screen"))
 
   return oc
+####################################################################################################
+# A to Z pull for VH1. But could be used with different sites. The # portion has bad links so removed it
+@route(PREFIX + '/alphabet')
+def Alphabet(title):
+    oc = ObjectContainer(title2=title)
+    for ch in list('#ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
+        oc.add(DirectoryObject(key=Callback(SectionJSON, title=ch, ch=ch), title=ch))
+    return oc
 ######################################################################################################
 # This is a JSON to produce sections on Yahoo
-@route(PREFIX + '/sectionjson', start=int)
-def SectionJSON(title, start=0):
+# Using ch to showsection type or letter of alphabet to determine which objects to add
+@route(PREFIX + '/sectionjson')
+def SectionJSON(title, ch):
 
   oc = ObjectContainer(title2=title)
+  # You have to determine and include a total count in the json url, otherwise it will only return the first 20 results or featured channels
+  count = len(HTML.ElementFromURL(YahooURL, cacheTime = CACHE_1DAY).xpath('//span[@class="channel-name"]/a'))
+  #channels = HTML.ElementFromURL(YahooURL, cacheTime = CACHE_1DAY).xpath('//span[@class="channel-name"]/a')
+  #count = len(channels)
   try:
-    data = JSON.ObjectFromURL(YahooSectionJSON %start)
+    data = JSON.ObjectFromURL(YahooSectionJSON %(count, 'common'), cacheTime = CACHE_1HOUR)
   except:
     return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
 
-  x=0
   for video in data:
-    x=x+1 
     url_name = video['url_alias'] 
     title = video['name'] 
-    total = video['videototal']
     
-    oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-    
-# Paging code. Each page pulls 20 results use x counter for need of next page
-  if x >= 20:
-    start = start + 20
-    oc.add(NextPageObject(
-      key = Callback(SectionJSON, title = title, start=start), 
-      title = L("Next Page ...")))
+    if ch=='snl':
+      if 'snl' in url_name:
+        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      else:
+        pass
+    elif ch=='orig' or ch=='feat':
+      try:
+        test=video['dock_logo']
+        if ch=='feat':
+          oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+        else:
+          pass
+      except:
+        if ch=='orig' and 'snl' not in url_name:
+          oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+    else:
+      if title.startswith(ch):
+        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      elif title[0].isalpha()==False and ch=='#':
+        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      else:
+        pass
+
+  # Prefer the websites ordering of sections. Would only want to use this for a to z
+  if len(ch)==1:
+    oc.objects.sort(key = lambda obj: obj.title)
 	
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty or contains videos that are not compatible with this channel.")      
@@ -130,10 +162,11 @@ def VideoJSON(title, url, start=0):
 ######################################################################################################
 # This functions searches Yahoo Screens at 'http://video.search.yahoo.com/search//?fr=screen&q=love'
 @route(PREFIX + '/searchyahoo', b=int)
-def SearchYahoo(title, query, b=1):
+def SearchYahoo(title, query='plex', b=1):
 
   oc = ObjectContainer(title2=title)
-  JSON_url = SearchJSON %(query, b)
+  # When searching on their site, the resulting URL has pluses instead of %20 for spaces though both usePlus options work
+  JSON_url = SearchJSON %(String.Quote(query, usePlus = True), b)
   try:
     data = JSON.ObjectFromURL(JSON_url)
   except:
