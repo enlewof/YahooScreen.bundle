@@ -36,7 +36,8 @@ def MainMenu():
   # Most Popular on Yahoo Screens
   oc.add(DirectoryObject(key=Callback(VideoJSON, title='Most Popular Videos', url='popular'), title='Most Popular Videos'))
   # Yahoo Search Object
-  oc.add(InputDirectoryObject(key=Callback(SearchYahoo, title='Search Yahoo Screen Videos'), title='Search Yahoo Screen Videos', summary="Click here to search for Videos on Yahoo Screen", prompt="Search for videos in Yahoo Screen"))
+  #oc.add(InputDirectoryObject(key=Callback(SearchYahoo, title='Search Yahoo Screen Videos'), title='Search Yahoo Screen Videos', summary="Click here to search for Videos on Yahoo Screen", prompt="Search for videos in Yahoo Screen"))
+  oc.add(SearchDirectoryObject(identifier="com.plexapp.plugins.yahooscreen", title=L("Search Yahoo Screen Videos"), prompt=L("Search for Videos")))
 
   return oc
 ####################################################################################################
@@ -55,10 +56,10 @@ def SectionJSON(title, ch):
 
   oc = ObjectContainer(title2=title)
   # You have to determine and include a total count in the json url, otherwise it will only return the first 20 results or featured channels
-  count = len(HTML.ElementFromURL(YahooURL, cacheTime = CACHE_1DAY).xpath('//span[@class="channel-name"]/a'))
+  # So setting it to the top 200 shows
 
   try:
-    data = JSON.ObjectFromURL(YahooSectionJSON %(count, 'common'), cacheTime = CACHE_1HOUR)
+    data = JSON.ObjectFromURL(YahooSectionJSON %('200', 'common'), cacheTime = CACHE_1HOUR)
   except:
     return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
 
@@ -72,15 +73,14 @@ def SectionJSON(title, ch):
       else:
         pass
     elif ch=='orig' or ch=='feat':
-      try:
-        test=video['dock_logo']
-        if ch=='feat':
-          oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-        else:
-          pass
-      except:
-        if ch=='orig' and 'snl' not in url_name:
-          oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      # The first featured sections have a value for dock logo
+      test=video['dock_logo']
+      if test and ch=='feat':
+        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      elif ch=='orig' and 'snl' not in url_name and not test:
+        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
+      else:
+        pass
     else:
       if title.startswith(ch):
         oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
@@ -89,7 +89,7 @@ def SectionJSON(title, ch):
       else:
         pass
 
-  # Prefer the websites ordering of sections. Would only want to use this for a to z
+  # Prefer the websites ordering of sections. Only use this for a to z
   if len(ch)==1:
     oc.objects.sort(key = lambda obj: obj.title)
 	
@@ -99,6 +99,7 @@ def SectionJSON(title, ch):
     return oc
 ######################################################################################################
 # This is a JSON to produce videos on Yahoo
+# They have taken the total out of this page so may have some with a next that has no results
 @route(PREFIX + '/videojson', start=int)
 def VideoJSON(title, url, start=0):
 
@@ -108,7 +109,6 @@ def VideoJSON(title, url, start=0):
   except:
     return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
 
-  total = data['total']
   x=0
   for video in data['videos']:
     x=x+1 
@@ -132,7 +132,12 @@ def VideoJSON(title, url, start=0):
     else:
       season = 0
       episode = 0
-    thumb = video['thumbnails'][1]['url']
+    try:
+      thumb = video['thumbnails'][1]['url']
+    except:
+      thumb = R(ICON)
+    #thumb = video['thumbnails'][1]['url']
+    Log('the value of thumb is %s' %thumb)
     # May need this for excluding videos that may not work with URL service
     provider_name = video['provider_name']
 
@@ -147,12 +152,9 @@ def VideoJSON(title, url, start=0):
       originally_available_at = date))
 
 # Paging code. Each page pulls 20 results use x counter for need of next page
-  if x >= 20 and x != total:
-    if start != total:
-      start = start + 20
-      oc.add(NextPageObject(
-        key = Callback(VideoJSON, title = title, url=url, start=start), 
-        title = L("Next Page ...")))
+  if x >= 20:
+    start = start + 20
+    oc.add(NextPageObject(key = Callback(VideoJSON, title = title, url=url, start=start), title = L("Next Page ...")))
           
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty or contains videos that are not compatible with this channel.")      
