@@ -1,13 +1,13 @@
 YahooURL = 'http://screen.yahoo.com'
 # There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' 
 # It returns results of type keys so not surewhat I would use it for
-SearchJSON = 'http://video.search.yahoo.com/search//?p=%s&fr=screen&o=js&gs=0&b=%s'
+SearchJSON = 'http://video.search.yahoo.com/search/?p=%s&fr=screen&o=js&gs=0'
 
 ####################################################################################################
-def Search(query, b=1):
+def Search(query):
   oc = ObjectContainer()
   # When searching on their site, the resulting URL has pluses instead of %20 for spaces though both usePlus options work
-  JSON_url = SearchJSON %(String.Quote(query, usePlus = True), b)
+  JSON_url = SearchJSON %String.Quote(query, usePlus = True)
   try:
     data = JSON.ObjectFromURL(JSON_url)
   except:
