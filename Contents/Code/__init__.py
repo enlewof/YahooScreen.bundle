@@ -5,8 +5,13 @@ ART      = 'art-default.jpg'
 ICON     = 'icon-default.png'
 
 YahooURL = 'http://screen.yahoo.com'
-# could possibly use type = user below to pull user preferred channels
-YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;videocount=0;count=%s;type=%s'
+# You have to determine and include a total count in the json url, otherwise it will only return the first 20 results
+# Since this json is used to return all shows or channels to be ordered A to Z, we need all shows returned
+# There is no code in the pages or json that gives a total count. There are currently 258 channels or shows, so setting it to the 300 for now
+YahooAllJSON = 'http://screen.yahoo.com/ajax/resource/channels;count=300;type=common;videocount=0'
+# We break the section results up into pages of 20 since SNL returns 120 channels or shows
+YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;count=20;start=%s;type=common;parent_alias=%s;videocount=0'
+# could use type = user above to pull user preferred channels
 YahooShowJSON = 'http://screen.yahoo.com/ajax/resource/channel/id/%s;count=20;start=%s'
 YahooShowURL = 'http://screen.yahoo.com/%s/%s.html'
 
@@ -21,41 +26,44 @@ def Start():
 def MainMenu():
 
   oc = ObjectContainer()
-  
   # Yahoo Screen Featured Sections
-  oc.add(DirectoryObject(key=Callback(SectionJSON, title='Featured Channels', ch='feat'), title='Featured Channels'))
-  # Yahoo Screen All sections but featured
-  oc.add(DirectoryObject(key=Callback(SectionJSON, title='More Channels', ch='orig'), title='More Channels'))
-  # Yahoo Screen SNL sections
-  oc.add(DirectoryObject(key=Callback(SectionJSON, title='Saturday Night Live Channels', ch='snl'), title='Saturday Night Live Channels'))
+  oc.add(DirectoryObject(key=Callback(Categories, title='Featured Channels', section='Featured Channels'), title='Featured Channels'))
+  # Yahoo Screen By Categories
+  oc.add(DirectoryObject(key=Callback(Categories, title='Categories', section='Categories'), title='Channels by Category'))
   # Yahoo Screen By A to Z
+  # The channel code could be much shorter if we removed this section, but this is very helpful for finding a particular show or channel
   oc.add(DirectoryObject(key=Callback(Alphabet, title='All Channels A to Z'), title='All Channels A to Z'))
-  # Most Popular on Yahoo Screens
-  oc.add(DirectoryObject(key=Callback(VideoJSON, title='Most Popular Videos', url='popular'), title='Most Popular Videos'))
   # Yahoo Search Object
   oc.add(SearchDirectoryObject(identifier="com.plexapp.plugins.yahooscreen", title=L("Search Yahoo Screen Videos"), prompt=L("Search for Videos")))
-
   return oc
 ####################################################################################################
-# A to Z pull for VH1. But could be used with different sites. The # portion has bad links so removed it
+# A to Z pull
 @route(PREFIX + '/alphabet')
 def Alphabet(title):
     oc = ObjectContainer(title2=title)
     for ch in list('#ABCDEFGHIJKLMNOPQRSTUVWXYZ'):
-        oc.add(DirectoryObject(key=Callback(SectionJSON, title=ch, ch=ch), title=ch))
+        oc.add(DirectoryObject(key=Callback(AllJSON, title=ch, ch=ch), title=ch))
+    return oc
+####################################################################################################
+# Category pull 
+@route(PREFIX + '/categories')
+def Categories(title, section):
+    oc = ObjectContainer(title2=title)
+    page = HTML.ElementFromURL(YahooURL)
+    for category in page.xpath('//*[text()="%s"]/following-sibling::ul/li/span/a' %section):
+        title = category.xpath('.//text()')[0]
+        url = category.xpath('.//@href')[0]
+        cat = url.replace('/', '')
+        oc.add(DirectoryObject(key=Callback(SectionJSON, title=title, cat=cat), title=title))
     return oc
 ######################################################################################################
-# This is a JSON to produce sections on Yahoo
-# Using ch to showsection type or letter of alphabet to determine which objects to add
-@route(PREFIX + '/sectionjson')
-def SectionJSON(title, ch):
+# This is a JSON to produce sections by letter. We pull all channels or shows and compare to letter
+@route(PREFIX + '/alljson')
+def AllJSON(title, ch):
 
   oc = ObjectContainer(title2=title)
-  # You have to determine and include a total count in the json url, otherwise it will only return the first 20 results or featured channels
-  # So setting it to the top 200 shows
-
   try:
-    data = JSON.ObjectFromURL(YahooSectionJSON %('200', 'common'), cacheTime = CACHE_1HOUR)
+    data = JSON.ObjectFromURL(YahooAllJSON, cacheTime = CACHE_1HOUR)
   except:
     return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
 
@@ -63,39 +71,56 @@ def SectionJSON(title, ch):
     url_name = video['url_alias'] 
     title = video['name'] 
     
-    if ch=='snl':
-      if 'snl' in url_name:
-        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-      else:
-        pass
-    elif ch=='orig' or ch=='feat':
-      # The first featured sections have a value for dock logo
-      test=video['dock_logo']
-      if test and ch=='feat':
-        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-      elif ch=='orig' and 'snl' not in url_name and not test:
-        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-      else:
-        pass
+    if title.startswith(ch) or title[0].isalpha()==False and ch=='#':
+      oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
     else:
-      if title.startswith(ch):
-        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-      elif title[0].isalpha()==False and ch=='#':
-        oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
-      else:
-        pass
+      pass
 
-  # Prefer the websites ordering of sections. Only use this for a to z
-  if len(ch)==1:
-    oc.objects.sort(key = lambda obj: obj.title)
+  oc.objects.sort(key = lambda obj: obj.title)
 	
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="This directory appears to be empty or contains videos that are not compatible with this channel.")      
   else:
     return oc
 ######################################################################################################
-# This is a JSON to produce videos on Yahoo
-# They have taken the total out of this page so may have some with a next that has no results
+# This is a JSON to produce sections or categories of shows using the parent alias
+@route(PREFIX + '/sectionjson', start=int)
+def SectionJSON(title, cat, start=0):
+
+  oc = ObjectContainer(title2=title)
+  try:
+    data = JSON.ObjectFromURL(YahooSectionJSON %(str(start), cat), cacheTime = CACHE_1HOUR)
+  except:
+    return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
+
+  x=0
+  for video in data:
+    url_name = video['url_alias'] 
+    cat_title = video['name'] 
+    x=x+1
+    oc.add(DirectoryObject(key=Callback(VideoJSON, title=cat_title, url=url_name), title=cat_title))
+
+# Paging code. Each page pulls 20 results
+# There is not a total number of videos to check against so we use a test to make sure the next page has results
+  if x>=20:
+    start=start+20
+    next = TestNext(start, cat)
+    if next:
+      oc.add(NextPageObject(key=Callback(SectionJSON, title=title, cat=cat, start=start), title='Next ...'))
+    else:
+      pass
+  else:
+    pass
+    
+  # They sort the sections well and since we may break it into pages, this is most likely unecessary
+  #oc.objects.sort(key = lambda obj: obj.title)
+	
+  if len(oc) < 1:
+    return ObjectContainer(header="Empty", message="There are no channels for %s." %title)      
+  else:
+    return oc
+######################################################################################################
+# This function processes JSON to produce videos on Yahoo
 @route(PREFIX + '/videojson', start=int)
 def VideoJSON(title, url, start=0):
 
@@ -145,12 +170,29 @@ def VideoJSON(title, url, start=0):
       duration = duration,
       originally_available_at = date))
 
-# Paging code. Each page pulls 20 results use x counter for need of next page
+# Paging code. Each page pulls 20 results
+# There is not a total number of videos to check against so we use a test to make sure the next page has results
   if x >= 20:
     start = start + 20
-    oc.add(NextPageObject(key = Callback(VideoJSON, title = title, url=url, start=start), title = L("Next Page ...")))
+    next = TestNext(start, cat)
+    if next:
+      oc.add(NextPageObject(key = Callback(VideoJSON, title = title, url=url, start=start), title = L("Next Page ...")))
+    else:
+      pass
+  else:
+    pass
           
   if len(oc) < 1:
-    return ObjectContainer(header="Empty", message="This directory appears to be empty or contains videos that are not compatible with this channel.")      
+    return ObjectContainer(header="Empty", message="There are no videos for this channel.")      
   else:
     return oc
+####################################################################################################
+# Test to see if there is any data on the next page
+@route(PREFIX + '/testnext')
+def TestNext(start, cat):
+    data = JSON.ObjectFromURL(YahooSectionJSON %(str(start), cat), cacheTime = CACHE_1HOUR)
+    if len(data)>0:
+        next = True
+    else:
+        next = False
+    return next
