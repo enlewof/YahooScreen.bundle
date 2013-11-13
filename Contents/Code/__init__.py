@@ -70,6 +70,7 @@ def AllJSON(title, ch):
   for video in data:
     url_name = video['url_alias'] 
     title = video['name'] 
+    title = title.replace('&#39;', "'") 
     
     if title.startswith(ch) or title[0].isalpha()==False and ch=='#':
       oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=url_name), title=title))
@@ -97,6 +98,7 @@ def SectionJSON(title, cat, start=0):
   for video in data:
     url_name = video['url_alias'] 
     cat_title = video['name'] 
+    cat_title = cat_title.replace('&#39;', "'") 
     x=x+1
     oc.add(DirectoryObject(key=Callback(VideoJSON, title=cat_title, url=url_name), title=cat_title))
 
@@ -139,7 +141,9 @@ def VideoJSON(title, url, start=0):
     duration = int(video['duration']) * 1000
     date = Datetime.ParseDate(video['publish_time'])
     summary = video['description']
+    summary = summary.replace('&#39;', "'") 
     title = video['title'] 
+    title = title.replace('&#39;', "'") 
     if '[' in title:
       ep_info = title.split('[')[1].replace(']', '')
       if 'S' in ep_info:
@@ -174,7 +178,7 @@ def VideoJSON(title, url, start=0):
 # There is not a total number of videos to check against so we use a test to make sure the next page has results
   if x >= 20:
     start = start + 20
-    next = TestNext(start, cat)
+    next = TestNextShow(url, start)
     if next:
       oc.add(NextPageObject(key = Callback(VideoJSON, title = title, url=url, start=start), title = L("Next Page ...")))
     else:
@@ -191,6 +195,16 @@ def VideoJSON(title, url, start=0):
 @route(PREFIX + '/testnext')
 def TestNext(start, cat):
     data = JSON.ObjectFromURL(YahooSectionJSON %(str(start), cat), cacheTime = CACHE_1HOUR)
+    if len(data)>0:
+        next = True
+    else:
+        next = False
+    return next
+####################################################################################################
+# Test to see if there is any data on the next page data = JSON.ObjectFromURL(YahooShowJSON %(url, start))
+@route(PREFIX + '/testnextshow')
+def TestNextShow(url, start):
+    data = JSON.ObjectFromURL(YahooShowJSON %(url, start), cacheTime = CACHE_1HOUR)
     if len(data)>0:
         next = True
     else:
