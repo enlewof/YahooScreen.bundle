@@ -15,6 +15,9 @@ YahooSectionJSON = 'http://screen.yahoo.com/ajax/resource/channels;count=20;star
 YahooShowJSON = 'http://screen.yahoo.com/ajax/resource/channel/id/%s;count=20;start=%s'
 YahooShowURL = 'http://screen.yahoo.com/%s/%s.html'
 
+# Season and Episode are always in the title and can be in brackets  
+RE_SEASON  = Regex('(SEASON|Season|\[S) ?(\d+)')
+RE_EPISODE  = Regex('(Episode|Ep.) ?(\d+)')
 ###################################################################################################
 def Start():
 
@@ -145,19 +148,13 @@ def VideoJSON(title, url, start=0):
     date = Datetime.ParseDate(video['publish_time'])
     summary = String.DecodeHTMLEntities(video['description'])
     title = String.DecodeHTMLEntities(video['title'])
+    # check for episode and season in title
+    try: season = int(RE_SEASON.search(title).group(2))
+    except: season = 0
+    try: episode = int(RE_EPISODE.search(title).group(2))
+    except: episode = 0
     if '[' in title:
-      ep_info = title.split('[')[1].replace(']', '')
-      if 'S' in ep_info:
-        season = int(ep_info.split(':')[0].replace('S', ''))
-        episode = ep_info.split(':')[1]
-      else:
-        season = 0
-        episode = ep_info
-      episode = int(episode.replace('Ep.', ''))
       title = title.split('[')[0]
-    else:
-      season = 0
-      episode = 0
     try:
       thumb = video['thumbnails'][1]['url']
     except:
@@ -165,15 +162,24 @@ def VideoJSON(title, url, start=0):
     # May need this for excluding videos that may not work with URL service
     provider_name = video['provider_name']
 
-    oc.add(EpisodeObject(
-      url = video_url, 
-      title = title, 
-      thumb = Resource.ContentsOfURLWithFallback(thumb),
-      index = episode,
-      season = season,
-      summary = summary,
-      duration = duration,
-      originally_available_at = date))
+    if episode or season:
+      oc.add(EpisodeObject(
+        url = video_url, 
+        title = title, 
+        thumb = Resource.ContentsOfURLWithFallback(thumb),
+        index = episode,
+        season = season,
+        summary = summary,
+        duration = duration,
+        originally_available_at = date))
+    else:
+      oc.add(VideoClipObject(
+        url = video_url, 
+        title = title, 
+        thumb = Resource.ContentsOfURLWithFallback(thumb),
+        summary = summary,
+        duration = duration,
+        originally_available_at = date))
 
 # Paging code. Each page pulls 20 results
 # There is not a total number of videos to check against so we use a test to make sure the next page has results
