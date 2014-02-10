@@ -56,7 +56,7 @@ def Categories(title):
     # Adding the [1] to the ul tag makes sure only the ul that immediately follows the title is picked up instead of all
     for category in page.xpath('//*[text()="%s"]/following-sibling::ul[1]/li/span/a' %title):
         title = category.xpath('.//text()')[0]
-        url = category.xpath('.//@href')[0]
+        url = category.xpath('./@href')[0]
         cat = url.replace('/', '')
         oc.add(DirectoryObject(key=Callback(SectionJSON, title=title, cat=cat), title=title))
     return oc
@@ -93,9 +93,9 @@ def SectionJSON(title, cat, start=0):
 
   oc = ObjectContainer(title2=title)
   # The popular section does not produce results when popular is put in the ';parent_alias=' portion of the section json url
-  if cat=='popular':
-    cat=''
   local_url = YahooSectionJSON %(str(start), cat)
+  if cat=='popular':
+    local_url = local_url.replace(';parent_alias=popular', '')
   try:
     data = JSON.ObjectFromURL(local_url, cacheTime = CACHE_1HOUR)
   except:
@@ -112,7 +112,11 @@ def SectionJSON(title, cat, start=0):
 # There is not a total number of videos to check against so we use a test to make sure the next page has results
   if x>=20:
     start=start+20
-    next = TestNext(start, cat)
+    json_url = YahooSectionJSON %(str(start), cat)
+  # The popular section does not produce results when popular is put in the ';parent_alias=' portion of the section json url
+    if cat=='popular':
+      json_url = json_url.replace(';parent_alias=popular', '')
+    next = TestNext(json_url)
     if next:
       oc.add(NextPageObject(key=Callback(SectionJSON, title=title, cat=cat, start=start), title='Next ...'))
     else:
@@ -120,8 +124,7 @@ def SectionJSON(title, cat, start=0):
   else:
     pass
     
-  # They sort the sections well and since we may break it into pages, this is most likely unecessary
-  #oc.objects.sort(key = lambda obj: obj.title)
+  # They sort the sections and the multiple pages makes sort unecessary
 	
   if len(oc) < 1:
     return ObjectContainer(header="Empty", message="There are no channels for %s." %title)      
@@ -160,7 +163,7 @@ def VideoJSON(title, url, start=0):
     except:
       thumb = R(ICON)
     # May need this for excluding videos that may not work with URL service
-    provider_name = video['provider_name']
+    #provider_name = video['provider_name']
 
     if episode or season:
       oc.add(EpisodeObject(
@@ -185,7 +188,8 @@ def VideoJSON(title, url, start=0):
 # There is not a total number of videos to check against so we use a test to make sure the next page has results
   if x >= 20:
     start = start + 20
-    next = TestNextShow(url, start)
+    json_url = YahooShowJSON %(url, start)
+    next = TestNext(json_url)
     if next:
       oc.add(NextPageObject(key = Callback(VideoJSON, title = title, url=url, start=start), title = L("Next Page ...")))
     else:
@@ -200,18 +204,8 @@ def VideoJSON(title, url, start=0):
 ####################################################################################################
 # Test to see if there is any data on the next page
 @route(PREFIX + '/testnext')
-def TestNext(start, cat):
-    data = JSON.ObjectFromURL(YahooSectionJSON %(str(start), cat), cacheTime = CACHE_1HOUR)
-    if len(data)>0:
-        next = True
-    else:
-        next = False
-    return next
-####################################################################################################
-# Test to see if there is any data on the next page data = JSON.ObjectFromURL(YahooShowJSON %(url, start))
-@route(PREFIX + '/testnextshow')
-def TestNextShow(url, start):
-    data = JSON.ObjectFromURL(YahooShowJSON %(url, start), cacheTime = CACHE_1HOUR)
+def TestNext(json_url):
+    data = JSON.ObjectFromURL(json_url, cacheTime = CACHE_1HOUR)
     if len(data)>0:
         next = True
     else:
