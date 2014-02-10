@@ -22,10 +22,13 @@ RE_EPISODE  = Regex('(Episode|Ep.) ?(\d+)')
 def Start():
 
   ObjectContainer.title1 = TITLE
+  ObjectContainer.art = R(ART)
+  DirectoryObject.thumb = R(ICON)
+  DirectoryObject.art = R(ART)
   HTTP.CacheTime = CACHE_1HOUR 
 
 ###################################################################################################
-@handler(PREFIX, TITLE)
+@handler(PREFIX, TITLE, art=ART, thumb=ICON)
 def MainMenu():
 
   oc = ObjectContainer()
