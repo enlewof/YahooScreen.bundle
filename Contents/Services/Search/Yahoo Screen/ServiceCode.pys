@@ -1,44 +1,46 @@
-YahooURL = 'http://screen.yahoo.com'
+YAHOO_URL = 'http://screen.yahoo.com'
 # There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' 
 # It returns results of type keys so not surewhat I would use it for
-SearchJSON = 'http://video.search.yahoo.com/search/?p=%s&fr=screen&o=js&gs=0'
+SEARCH_JSON = 'http://video.search.yahoo.com/search/?p=%s&fr=screen&o=js&gs=0'
 
 ####################################################################################################
 def Search(query):
-  oc = ObjectContainer()
-  # When searching on their site, the resulting URL has pluses instead of %20 for spaces though both usePlus options work
-  JSON_url = SearchJSON %String.Quote(query, usePlus = True)
-  try:
-    data = JSON.ObjectFromURL(JSON_url)
-  except:
-    return ObjectContainer(header=L('Error'), message=L('This feed does not contain any video'))
 
-  x=0
-  if data.has_key('results'):
+  oc = ObjectContainer(title1='Yahoo Screen', title2='Search Results')
+
+  # When searching on their site, the resulting URL has pluses instead of %20 for spaces though both usePlus options work
+  json_url = SEARCH_JSON % String.Quote(query, usePlus=True)
+  try:
+    data = JSON.ObjectFromURL(json_url)
+  except:
+    return oc
+
+  if 'results' in data:
     for entry in data['results']:
-      x=x+1
       search_data = HTML.ElementFromString(entry)
-      url = search_data.xpath('//a//@data-rurl')[0]
-      thumb = search_data.xpath('//a/img//@src')[0]
-      title = search_data.xpath('//a/div/div/h3//text()')[0]
-      duration = Datetime.MillisecondsFromString(search_data.xpath('//a/div/span//text()')[0])
-      summary_info = search_data.xpath('//a//@data')[0]
-      summary_data = JSON.ObjectFromString(summary_info)
-      summary = summary_data['d']
-        
-      if not url.startswith('http://'):
-        url = YahooURL + url
+      url = search_data.xpath('//a/@data-rurl')[0]
 
       # had one give no service error with cbs in url
-      if 'cbs.html' not in url:
-        oc.add(VideoClipObject(
-          url = url, 
-          title = title, 
-          thumb = Resource.ContentsOfURLWithFallback(thumb),
-          summary = summary,
-          duration = duration))
+      if 'cbs.html' in url:
+        continue
 
-  if len(oc) < 1:
-    return ObjectContainer(header="Empty", message="This directory appears to be empty. There are no videos to display right now.")      
-  else:
-    return oc
+      thumb = search_data.xpath('//img/@src')[0]
+      title = search_data.xpath('//h3/text()')[0]
+      duration = Datetime.MillisecondsFromString(search_data.xpath('//span[contains(@class, "dur")]/text()')[0])
+
+      summary_info = search_data.xpath('//a/@data')[0]
+      summary_data = JSON.ObjectFromString(summary_info)
+      summary = summary_data['d']
+
+      if not url.startswith('http://'):
+        url = YAHOO_URL + url
+
+      oc.add(VideoClipObject(
+        url = url,
+        title = title,
+        thumb = Resource.ContentsOfURLWithFallback(thumb),
+        summary = summary,
+        duration = duration
+      ))
+
+  return oc
