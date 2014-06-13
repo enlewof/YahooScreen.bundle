@@ -29,7 +29,7 @@ def MainMenu():
   oc = ObjectContainer()
 
   # Yahoo Screen Featured Sections
-  oc.add(DirectoryObject(key=Callback(Categories, title='Featured Channels'), title='Featured Channels'))
+  oc.add(DirectoryObject(key=Callback(Categories, title='Featured'), title='Featured Channels'))
   # Yahoo Screen By Categories
   oc.add(DirectoryObject(key=Callback(Categories, title='Categories'), title='Channels by Category'))
   # Yahoo Screen By A to Z
