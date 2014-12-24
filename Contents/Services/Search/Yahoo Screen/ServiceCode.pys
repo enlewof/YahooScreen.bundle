@@ -1,6 +1,4 @@
 YAHOO_URL = 'http://screen.yahoo.com'
-# There is an autocomplete for the yahoo search at 'http://screen.yahoo.com/_xhr/search-autocomplete/?query=' 
-# It returns results of type keys so not surewhat I would use it for
 SEARCH_JSON = 'http://video.search.yahoo.com/search/?p=%s&fr=screen&o=js&gs=0'
 
 ####################################################################################################
@@ -13,10 +11,11 @@ def Search(query):
   try:
     data = JSON.ObjectFromURL(json_url)
   except:
-    return oc
+    return ObjectContainer(header='Error', message='Unable to find search results for this query')
 
   if 'results' in data:
     for entry in data['results']:
+      #Log('the value of data is %s' %data['results'])
       search_data = HTML.ElementFromString(entry)
       url = search_data.xpath('//a/@data-rurl')[0]
 
@@ -25,8 +24,9 @@ def Search(query):
         continue
 
       thumb = search_data.xpath('//img/@src')[0]
-      title = search_data.xpath('//h3/text()')[0]
-      duration = Datetime.MillisecondsFromString(search_data.xpath('//span[contains(@class, "dur")]/text()')[0])
+      title = search_data.xpath('//h3//text()')[0]
+      try: duration = Datetime.MillisecondsFromString(search_data.xpath('//span[contains(@class, "dur")]/text()')[0])
+      except: duration = None
 
       summary_info = search_data.xpath('//a/@data')[0]
       summary_data = JSON.ObjectFromString(summary_info)
