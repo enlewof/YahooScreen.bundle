@@ -68,7 +68,7 @@ def Featured(title):
         if title in MORE_FEATURE:
             oc.add(DirectoryObject(key=Callback(SectionJSON, title=title, cat=cat), title=title))
         else:
-            oc.add(DirectoryObject(key=Callback(SectionJSON, title=title, cat=cat), title=title))
+            oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=cat), title=title))
 
     return oc
 
