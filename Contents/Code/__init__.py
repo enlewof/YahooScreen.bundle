@@ -8,6 +8,8 @@ YAHOO_SECTION_JSON = 'https://screen.yahoo.com/ajax/resource/channels;channel_al
 YAHOO_SHOW_JSON = 'http://screen.yahoo.com/ajax/resource/channel/id/%s;count=20;start=%d'
 YAHOO_SHOW_URL = 'http://screen.yahoo.com/%s/%s.html'
 
+YAHOO_Category_URL = 'https://screen.yahoo.com/ajax/resource/channels;count=100;hasSubchannels=true;start=0;type=category;videocount=0'
+
 # Season and Episode are always in the title and can be in brackets
 RE_SEASON = Regex('(SEASON|Season|\[S) ?(\d+)')
 RE_EPISODE = Regex('(Episode|Ep.) ?(\d+)')
@@ -15,7 +17,7 @@ RE_EPISODE = Regex('(Episode|Ep.) ?(\d+)')
 # Need to create a list of Featured pages that we know have multiple categories
 MORE_FEATURE = ["SNL", "VEVO", "Comedy Central"]
 # This could be used to search for shows
-CHANNEL_SEARCH_JSON = 'https://screen.yahoo.com/ajax/services/finder/channels?query=%s&count=%s'
+CHANNEL_SEARCH_JSON = 'https://screen.yahoo.com/_screen_api/resource/videosearch;query=%s;type=suggestions'
 
 ###################################################################################################
 def Start():
@@ -30,7 +32,7 @@ def MainMenu():
     oc = ObjectContainer()
 
     # Yahoo Screen Featured Sections
-    oc.add(DirectoryObject(key=Callback(Categories, title='Featured'), title='Featured'))
+    oc.add(DirectoryObject(key=Callback(Featured, title='Featured'), title='Featured'))
 
     # Yahoo Screen By Categories
     oc.add(DirectoryObject(key=Callback(Categories, title='Categories'), title='Channels by Category'))
@@ -47,8 +49,9 @@ def MainMenu():
     return oc
 
 ####################################################################################################
-@route(PREFIX + '/categories')
-def Categories(title):
+# featured are pulled from html while all others are pulled from json
+@route(PREFIX + '/featured')
+def Featured(title):
 
     oc = ObjectContainer(title2=title)
     page = HTML.ElementFromURL(YAHOO_URL)
@@ -62,12 +65,33 @@ def Categories(title):
 
         # This catches any listed in the featured section that would just produce a lists of all the featured
         # and category sections again and sends those on to produce the videos listed at the top of that page
-        if 'Featured' in section and title not in MORE_FEATURE:
-            oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=cat), title=title))
-        else:
+        if title in MORE_FEATURE:
             oc.add(DirectoryObject(key=Callback(SectionJSON, title=title, cat=cat), title=title))
+        else:
+            oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=cat), title=title))
 
     return oc
+
+####################################################################################################
+@route(PREFIX + '/categories')
+def Categories(title):
+
+    oc = ObjectContainer(title2=title)
+
+    try:
+        data = JSON.ObjectFromURL(YAHOO_Category_URL)
+    except:
+        return ObjectContainer(header='Error', message='This feed does not contain any video')
+
+    for item in data:
+        cat_title = item['name']
+        cat = item['url_alias']
+        oc.add(DirectoryObject(key=Callback(SectionJSON, title=cat_title, cat=cat), title=cat_title))
+
+    if len(oc) < 1:
+        return ObjectContainer(header='Empty', message='There are no channels for %s.' % title)
+    else:
+        return oc
 
 ######################################################################################################
 # This is a JSON to produce sections or categories of shows using the parent alias
@@ -200,16 +224,17 @@ def ChannelFinder(query, title='Channel Finder'):
     oc = ObjectContainer(title2='Channel Finder')
 
     # the QUERY URL can use %20 or plus for spaces
-    json_url = CHANNEL_SEARCH_JSON % (String.Quote(query, usePlus=True), 25)
+    json_url = CHANNEL_SEARCH_JSON % String.Quote(query, usePlus=True)
     try:
         data = JSON.ObjectFromURL(json_url)
     except:
         return ObjectContainer(header='Error', message='Unable to find results for this query')
 
-    for entry in data['channels']:
+    for entry in data['channelResults']:
         title = entry['title']
         alias = entry['alias']
-        Log(' the value of alias is %s' %alias)
+        #Log(' the value of alias is %s' %alias)
+        alias = alias.replace('wf-channel=', '')
         oc.add(DirectoryObject(key=Callback(VideoJSON, title=title, url=alias), title=title))
 
     if len(oc) < 1:
