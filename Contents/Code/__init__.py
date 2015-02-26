@@ -8,7 +8,7 @@ YAHOO_SECTION_JSON = 'https://screen.yahoo.com/ajax/resource/channels;channel_al
 YAHOO_SHOW_JSON = 'http://screen.yahoo.com/ajax/resource/channel/id/%s;count=20;start=%d'
 YAHOO_SHOW_URL = 'http://screen.yahoo.com/%s/%s.html'
 
-YAHOO_Category_URL = 'https://screen.yahoo.com/ajax/resource/channels;count=100;hasSubchannels=true;start=0;type=category;videocount=0'
+YAHOO_CATEGORY_URL = 'https://screen.yahoo.com/ajax/resource/channels;count=100;hasSubchannels=true;start=0;type=category;videocount=0'
 
 # Season and Episode are always in the title and can be in brackets
 RE_SEASON = Regex('(SEASON|Season|\[S) ?(\d+)')
@@ -79,7 +79,7 @@ def Categories(title):
     oc = ObjectContainer(title2=title)
 
     try:
-        data = JSON.ObjectFromURL(YAHOO_Category_URL)
+        data = JSON.ObjectFromURL(YAHOO_CATEGORY_URL)
     except:
         return ObjectContainer(header='Error', message='This feed does not contain any video')
 
